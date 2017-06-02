@@ -51,11 +51,14 @@ def write_tmp(path, data):
 
 	return tmp
 
-def run_gpg(default_key, *arguments):
+def run_gpg(default_key, batch, *arguments):
 	arguments = list(arguments)
 	if default_key is not None:
 		arguments = ['--default-key', default_key] + arguments
-	arguments.insert(0, '--use-agent')
+	if batch:
+		arguments.insert(0, '--batch')
+	else:
+		arguments.insert(0, '--use-agent')
 	arguments.insert(0, 'gpg')
 	import subprocess
 	if subprocess.call(arguments):
@@ -64,11 +67,20 @@ def run_gpg(default_key, *arguments):
 def sign_unsigned(path, data, key):
 	support.portable_rename(write_tmp(path, data), path)
 
-def sign_xml(path, data, key):
+def sign_xml(path, data, key, passphrase_file=None, passphrase_fd=None):
 	tmp = write_tmp(path, data)
 	sigtmp = tmp + '.sig'
+	args = ['--detach-sign', '--output', sigtmp]
+	batch = False
+	if passphrase_file:
+		batch = True
+		args.append("--passphrase-file=%s" % passphrase_file)
+	if passphrase_fd:
+		batch = True
+		args.append("--passphrase-fd=%s" % passphrase_fd)
+	args.append(tmp)
 	try:
-		run_gpg(key, '--detach-sign', '--output', sigtmp, tmp)
+		run_gpg(key, batch, *args)
 	finally:
 		os.unlink(tmp)
 	encoded = base64.encodestring(file(sigtmp).read())
